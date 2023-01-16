@@ -148,7 +148,14 @@ void loop() {
       for(int j=0;j<strlen(RFIDtag);j++){
         RFIDtag[j]=myFile.read();
       }
-      if (strcmp(nuidPICC,RFIDtag)){ //compare the array with nuipPICC
+
+      Serial.println("NUIDPICC");
+        for(int j=0;j<strlen(nuidPICC);j++){
+      Serial.print(nuidPICC[j]);
+      }
+
+      
+      if (strcmp(nuidPICC,RFIDtag)==0){ //compare the array with nuipPICC
         //store the second line of the file in an arry of int codeUser
         for(int j=0;j<strlen(codeUser);j++){
           codeUser[j]=myFile.read();
@@ -190,7 +197,7 @@ void loop() {
       for(int j=0;j<strlen(RFIDtag);j++){
         RFIDtag[j]=myFile.read();
       }
-      if (strcmp(nuidPICC,RFIDtag)){ //compare the array with nuipPICC
+      if (strcmp(nuidPICC,RFIDtag)==0){ //compare the array with nuipPICC
       //store the second line of the file in an arry of int codeUser
         for(int j=0;j<strlen(codeUser);j++){
           codeUser[j]=myFile.read();
@@ -263,7 +270,11 @@ void loop() {
     lockerFile = SD.open(file, FILE_WRITE); //open the locker file to write in it
     Serial.println(lockerFile);
     if (lockerFile){
-      //myFile.println(nuidPICC); //DO NOT WORK !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      for(int j=0;j<strlen(nuidPICC);j++){
+      lockerFile.print(nuidPICC[j]);
+      }
+      Serial.println("code");
+      Serial.println(code);
       lockerFile.println(code); //DO NOT WORK !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       Serial.println("A locker has been assigned");
     } else {
