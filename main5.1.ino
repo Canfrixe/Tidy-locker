@@ -23,7 +23,7 @@
 #define D7 37
 
 // MICROSD CARD
-#define sdCard 10
+#define sdCard 53
 
 //RFID
 #define SS_RFID 32
@@ -50,15 +50,23 @@ byte rowPins[ROWS] = {27, 28, 29, 30}; //connect to the row pinouts of the keypa
 byte colPins[COLS] = {23, 24, 25, 26}; //connect to the column pinouts of the keypad
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
 
-char code[4]; //code selectionné
+char code[4]; //selected code with the keyboard
 
 // RFID
 MFRC522 rfid(SS_RFID, RST_RFID);
-byte nuidPICC[6]; //
-byte existingLocker[6];
+byte nuidPICC[6]; //Where the read RFID is stored
 
 //MICROSD CARD
 File myFile;
+File lockerFile;
+
+//ERROR STATUS
+byte errorStatus=0; //if the variable is different from 0, there is an issue
+
+
+//test
+byte RFIDtag[6]; //to compare the rfid from files
+byte existingLocker[6];
 
 /* ------------------------------------------------------------------------------------------*/
 
@@ -68,40 +76,42 @@ void setup() {
   pinMode(greenLight, OUTPUT);
   pinMode(redLight, OUTPUT);
   pinMode(sdCard, OUTPUT);
-  lcd.begin(16,2); // lcd : 16 colonnes et 2 lignes
+  lcd.begin(16,2); // lcd : 16 columns et 2 rows
   SPI.begin(); // Init SPI bus
   rfid.PCD_Init(); // Init MFRC522
+  while(!Serial); 
+  if(!SD.begin(sdCard)){
+    Serial.println("sdCard initialisation failed!");
+  } else {
+    Serial.println("sdCard initialisation done.");
+  }
+  digitalWrite(sdCard, HIGH);
+  digitalWrite(SS_RFID, HIGH);
   Serial.println("Setup succeded");
 }
 
 
 
 void loop() {
-  int compteurCode = 0;
-  int affichageCode =0;
-  char codeUser[] = "2023";
-  lcdDefaut();
+
+  int firstFreeLocker=0; // first available locker
+  byte RFIDtag[6]; //to compare the rfid from files
+  char codeUser[] = "1234"; // to get the size of a code, else add another caracter
+  int lockerUser=0; //locker of the user
+  byte openingAutorisation=0; //do not autorise the lockers to open
+  
+  lcdDefaut(); //reset the display of the lcd screen
+
+  //Init the RFID tag arrays
   for(int j=0;j<strlen(nuidPICC);j++){
     nuidPICC[j]=0;
+    RFIDtag[j]=0;
   }
+  
 
-
-  //digitalWrite(SS_RFID, LOW); // Disable the RFID
-  digitalWrite(sdCard, LOW);  
-
-  if (!SD.begin(sdCard)) {
-    Serial.println("initialization failed!");
-  } else {
-    Serial.println("initialization done.");
-  }
-
-
-  //digitalWrite(sdCard, HIGH);
-  //digitalWrite(SS_RFID, LOW); // Enable the RFID
-
-/*********************************
-* Check if a card was read
-*********************************/
+  /*********************************
+  * Check if a card was read
+  *********************************/
   lcd.clear();
   //Wait to read a rfid card
   byte cardRead = 0;
@@ -110,100 +120,214 @@ void loop() {
     cardRead = readRFID(); //store the succes (or not) of the operation
     delay(200);
   }
-  Serial.println("A card has been read"); 
+  Serial.println("A card has been read");
 
-
-/*
-  Serial.println("nuidpicc : ");  
+  // nuidPICC is a byte array so we can't print it
   for(int j=0;j<strlen(nuidPICC);j++){
-    Serial.print(nuidPICC[j]);    
+    Serial.print(nuidPICC[j]);
   }
 
-  Serial.println("existing locker : ");
-  for(int j=0;j<strlen(existingLocker);j++){
-    Serial.print(existingLocker[j]);    
-  }
 
-  Serial.println(strlen(existingLocker));
-
-  if(strcmp(nuidPICC,existingLocker)==0){
-    Serial.println("sucess");
-  } else{
-    Serial.println("failed");
-  }
+  digitalWrite(sdCard, LOW);
   
-
-  for(int j=0;j<strlen(nuidPICC);j++){
-    Serial.print(nuidPICC[j]);    
-  }
-
-  strcpy(existingLocker,nuidPICC);
-  Serial.println("existing locker : ");
-  for(int j=0;j<strlen(existingLocker);j++){
-    Serial.print(existingLocker[j]);    
-  }
-
-  if(strcmp(nuidPICC,existingLocker)==0){
-    Serial.println("sucess");
-  } else{
-    Serial.println("failed");
-  }*/
-
-/************************************************
-* Check if the rfid adress matches with a locker
-************************************************/
-
-/************************************************
-* If not check if 
-************************************************/
-
-
-  // set the cursor to (0,0): TOP LEFT
-  lcd.setCursor(0, 0);
-  lcd.print("Veuillez saisir");
-  
-  // set the cursor to (0,1): BOTTOM LEFT
-  lcd.setCursor(0, 1);
-  lcd.print("votre code");
-  Serial.println("code à insérer"); //!\ obligatoire sinon problème lors de l'execution /!\
-
-  for (compteurCode = 0; compteurCode < 4; compteurCode++) { //compteur pour avoir les 4 premieres clés sélectionnées
-    char key = keypad.waitForKey(); //wait for a key to be pressed
-    if(compteurCode==0){
-      lcd.clear();
-      lcd.setCursor(5, 0);
-      lcd.print("<CODE>");
-      lcd.blink();
-      lcd.cursor();
-    }
-     
-    if (key != NO_KEY) {
-      lcd.setCursor(6+compteurCode, 1);
-      //lcd.print("*");
-      lcd.print(key);            
-      touche();
-      code[compteurCode] = key;
-      Serial.println(key);
-    }
-  }
-  code[4] = 0; //caractère de fin de la chaine de caractère
-  delay(400);
-  
-  if (strcmp(code, codeUser) == 0) {
-    lcd.clear();
-    lcdDefaut();
-    lcd.setCursor(4, 0);
-    lcd.print("CODE BON");
-    codeBon();
+  //Check if the SD cards is initialised
+  if(!SD.begin(sdCard)){
+    Serial.println("initialisation failed!");
   } else {
-    lcd.clear();
-    lcdDefaut();
-    lcd.setCursor(4, 0);
-    lcd.print("CODE FAUX");
-    codeFaux();
+    Serial.println("initialisation done.");
+  }
+
+  /************************************************
+  * Check if the rfid tag matches with a locker
+  ************************************************/
+  if(SD.exists("locker1.txt")){
+  myFile = SD.open("locker1.txt");
+    if (myFile) {
+      Serial.println("compare locker1's RFID tag");
+      //store the first line of the file in an array of byte RFIDtag
+      for(int j=0;j<strlen(RFIDtag);j++){
+        RFIDtag[j]=myFile.read();
+      }
+      if (strcmp(nuidPICC,RFIDtag)){ //compare the array with nuipPICC
+        //store the second line of the file in an arry of int codeUser
+        for(int j=0;j<strlen(codeUser);j++){
+          codeUser[j]=myFile.read();
+        } 
+        lockerUser = 1;
+      }
+      myFile.close(); // close the file
+      } else {
+        Serial.println("Error opening locker1.txt");
+      }
+  }
+  
+  if(SD.exists("locker2.txt")){
+  myFile = SD.open("locker2.txt");
+    if (myFile) {
+      Serial.println("compare locker2's RFID tag");
+      //store the first line of the file in an array of byte RFIDtag
+      for(int j=0;j<strlen(RFIDtag);j++){
+        RFIDtag[j]=myFile.read();
+      }
+      if (strcmp(nuidPICC,RFIDtag)==0){ //compare the array with nuipPICC
+      //store the second line of the file in an arry of int codeUser
+        for(int j=0;j<strlen(codeUser);j++){
+          codeUser[j]=myFile.read();
+        } 
+        lockerUser = 2;
+      }
+      myFile.close(); // close the file
+      } else {
+        Serial.println("Error opening locker2.txt");
+      }
+  }
+
+  if(SD.exists("locker3.txt")){
+  myFile = SD.open("locker3.txt");
+    if (myFile) {
+      Serial.println("compare locker3's RFID tag");
+      //store the first line of the file in an array of byte RFIDtag
+      for(int j=0;j<strlen(RFIDtag);j++){
+        RFIDtag[j]=myFile.read();
+      }
+      if (strcmp(nuidPICC,RFIDtag)){ //compare the array with nuipPICC
+      //store the second line of the file in an arry of int codeUser
+        for(int j=0;j<strlen(codeUser);j++){
+          codeUser[j]=myFile.read();
+        } 
+        lockerUser = 3;
+      }
+      myFile.close(); // close the file
+      } else {
+        Serial.println("Error opening locker3.txt");
+      }
   }
 
 
+  /************************************************
+  * IF THE USER DOESN'T HAVE ANY LOCKER
+  ************************************************/
+  if(lockerUser==0){ 
+    firstFreeLocker = locker_free(); //check the first free locker
+    Serial.println(firstFreeLocker);
+    if(firstFreeLocker==0){
+      Serial.println("there is not any locker available");
+      return;
+    }
+    char lockerFree[2];
+    switch (firstFreeLocker){ //convert the int into a string
+      case 1: 
+        strcpy(lockerFree,"1");
+        break;    
+      case 2: 
+        strcpy(lockerFree,"2");
+        break; 
+      case 3: 
+        strcpy(lockerFree,"3");
+        break; 
+    }
+    char file[11] = "locker";
+    strcat(file,lockerFree);
+    strcat(file,".txt"); // concatenate the file to lockerX.txt with X the first available locker 
+    Serial.println(file);
+
+    // set the cursor to (0,0): TOP LEFT
+    lcd.setCursor(0, 0);
+    lcd.print("Saisissez votre");
+    
+    // set the cursor to (0,1): BOTTOM LEFT
+    lcd.setCursor(0, 1);
+    lcd.print("nouveau code");
+    Serial.println("Insert new code"); //!\ obligatoire sinon problème lors de l'execution /!\\ 
+
+    for (int compteurCode = 0; compteurCode < 4; compteurCode++) { //compteur pour avoir les 4 premieres clés sélectionnées
+      char key = keypad.waitForKey(); //wait for a key to be pressed
+      if(compteurCode==0){
+        lcd.clear();
+        lcd.setCursor(5, 0);
+        lcd.print("<CODE>");
+        lcd.blink();
+        lcd.cursor();
+      }
+      
+      if (key != NO_KEY) {
+        lcd.setCursor(6+compteurCode, 1);
+        lcd.print(key);            
+        touche();
+        code[compteurCode] = key;
+        Serial.println(key);
+      }
+    }
+    code[4] = 0; //caractère de fin de la chaine de caractère
+
+    lockerFile = SD.open(file, FILE_WRITE); //open the locker file to write in it
+    Serial.println(lockerFile);
+    if (lockerFile){
+      //myFile.println(nuidPICC); //DO NOT WORK !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      lockerFile.println(code); //DO NOT WORK !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      Serial.println("A locker has been assigned");
+    } else {
+      Serial.println("/!\\ Error to store the new user");
+    }
+    delay(400);
+    lcd.clear();
+    lockerUser = lockerFree; 
+    openingAutorisation =1;
+  } else { // The user already have a locker
+      // set the cursor to (0,0): TOP LEFT
+      Serial.println(lockerUser);
+      lcd.setCursor(0, 0);
+      lcd.print("Veuillez saisir");
+      
+      // set the cursor to (0,1): BOTTOM LEFT
+      lcd.setCursor(0, 1);
+      lcd.print("votre code");
+      Serial.println("Insert code"); //!\ obligatoire sinon problème lors de l'execution /!\\ 
+
+      for (int compteurCode = 0; compteurCode < 4; compteurCode++) { //compteur pour avoir les 4 premieres clés sélectionnées
+        char key = keypad.waitForKey(); //wait for a key to be pressed
+        if(compteurCode==0){
+          lcd.clear();
+          lcd.setCursor(5, 0);
+          lcd.print("<CODE>");
+          lcd.blink();
+          lcd.cursor();
+        }
+        
+        if (key != NO_KEY) {
+          lcd.setCursor(6+compteurCode, 1);
+          lcd.print("*");         
+          touche();
+          code[compteurCode] = key;
+          Serial.println(key);
+        }
+      }
+      code[4] = 0; //caractère de fin de la chaine de caractère
+      delay(400);
+      
+      if (strcmp(code, codeUser) == 0) {
+        lcd.clear();
+        lcdDefaut();
+        lcd.setCursor(4, 0);
+        lcd.print("CODE BON");
+        codeBon();
+      openingAutorisation =1;
+      } else {
+        lcd.clear();
+        lcdDefaut();
+        lcd.setCursor(4, 0);
+        lcd.print("CODE FAUX");
+        codeFaux();
+      }
+    }
+
+
+  if(openingAutorisation==1){
+    //openLocker(lockerUser); //OPEN THE LOCKER OF THE USER
+    Serial.println("A locker is opened");
+  }
+
+  digitalWrite(sdCard, HIGH);
 }
 
 
@@ -255,6 +379,8 @@ void lcdDefaut(){
 
 /* ------------------------------------------ RFID MODULE ------------------------------------------ */
 int readRFID(){
+  digitalWrite(SS_RFID, LOW);
+  rfid.PCD_Init();
   int flag=0;
        // Look for new card
        if (!rfid.PICC_IsNewCardPresent())
@@ -279,6 +405,7 @@ int readRFID(){
      rfid.PCD_StopCrypto1();
      flag++;
      //Serial.println(flag);
+     digitalWrite(SS_RFID, HIGH);
      return flag;
 }
 
@@ -287,4 +414,20 @@ void printDec(byte *buffer, byte bufferSize) {
              Serial.print(buffer[i] < 0x10 ? " 0" : " ");
              Serial.print(buffer[i], DEC);
      }
+}
+
+
+/* ------------------------------------------ SD Card ------------------------------------------ */
+int locker_free(){ //if a locker is not affiliated it returns the first number of a free locker
+  if(!SD.exists("locker1.txt")){
+    Serial.println("locker 1 is not affiliated");
+    return 1;
+  }else if(!SD.exists("locker2.txt")){
+    Serial.println("locker 2 is not affiliated");
+    return 2;
+  }else if(!SD.exists("locker3.txt")){
+    Serial.println("locker3 is not affiliated");
+    return 3;
+  }
+  return 0;
 }
