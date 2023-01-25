@@ -43,7 +43,7 @@ char keys[ROWS][COLS] = {
   {'1', '2', '3', 'A'},
   {'4', '5', '6', 'B'},
   {'7', '8', '9', 'C'},
-  {'#', '0', '*', 'D'}
+  {'*', '0', '#', 'D'}
 };
 
 byte rowPins[ROWS] = {27, 28, 29, 30}; //connect to the row pinouts of the keypad
@@ -61,12 +61,9 @@ File myFile;
 File lockerFile;
 
 //ERROR STATUS
-byte errorStatus=0; //if the variable is different from 0, there is an issue
+int errorStatus=0; //if the variable is different from 0, there is an issue
 
 
-//test
-byte RFIDtag[6]; //to compare the rfid from files
-byte existingLocker[6];
 
 /* ------------------------------------------------------------------------------------------*/
 
@@ -92,12 +89,24 @@ void setup() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 void loop() {
 
   int firstFreeLocker=0; // first available locker
-  byte RFIDtag[6]; //to compare the rfid from files
+  char RFIDtag[6]; //to compare the rfid from files
   char codeUser[] = "1234"; // to get the size of a code, else add another caracter
   int lockerUser=0; //locker of the user
+  char locker[10]; //store the characters of the file
   byte openingAutorisation=0; //do not autorise the lockers to open
   
   lcdDefaut(); //reset the display of the lcd screen
@@ -105,8 +114,9 @@ void loop() {
   //Init the RFID tag arrays
   for(int j=0;j<strlen(nuidPICC);j++){
     nuidPICC[j]=0;
-    RFIDtag[j]=0;
   }
+
+
   
 
   /*********************************
@@ -122,19 +132,47 @@ void loop() {
   }
   Serial.println("A card has been read");
 
-  // nuidPICC is a byte array so we can't print it
-  for(int j=0;j<strlen(nuidPICC);j++){
-    Serial.print(nuidPICC[j]);
+  //Convert the array of byte to an array of char
+  char empreinteRFID[4];
+  for (int i = 0; i < strlen(nuidPICC); i++) {
+    empreinteRFID[i] = (char) nuidPICC[i];
   }
+  //remove the last character of the array and remplace it with the end of string character
+  empreinteRFID[strlen(nuidPICC)-1]=0;
 
-
+  Serial.print("empreinteRFID : ");
+  Serial.println(empreinteRFID);
   digitalWrite(sdCard, LOW);
   
+
   //Check if the SD cards is initialised
   if(!SD.begin(sdCard)){
     Serial.println("initialisation failed!");
+    errorStatus=1;
   } else {
     Serial.println("initialisation done.");
+  }
+
+  Serial.println(' ');
+  Serial.println(' ');
+
+
+
+
+
+
+
+  //remove every character of the locker array
+  for(int j=0;j<strlen(locker);j++){
+    locker[j]=0;
+  }
+  //remove every character of the RFIDtag array
+  for(int j=0;j<strlen(RFIDtag);j++){
+    RFIDtag[j]=0;
+  }
+  //remove every character of the codeUser array
+  for(int j=0;j<strlen(codeUser);j++){
+    codeUser[j]=0;
   }
 
   /************************************************
@@ -144,22 +182,40 @@ void loop() {
   myFile = SD.open("locker1.txt");
     if (myFile) {
       Serial.println("compare locker1's RFID tag");
-      //store the first line of the file in an array of byte RFIDtag
-      for(int j=0;j<strlen(RFIDtag);j++){
-        RFIDtag[j]=myFile.read();
-      }
 
-      Serial.println("NUIDPICC");
-        for(int j=0;j<strlen(nuidPICC);j++){
-      Serial.print(nuidPICC[j]);
+      //store all characters of the file in an array called locker
+      int i=0;
+       while (myFile.available()) {
+        locker[i]=myFile.read();
+        i++;
       }
-
       
-      if (strcmp(nuidPICC,RFIDtag)==0){ //compare the array with nuipPICC
-        //store the second line of the file in an arry of int codeUser
-        for(int j=0;j<strlen(codeUser);j++){
-          codeUser[j]=myFile.read();
-        } 
+      Serial.println("locker :");
+      Serial.println(locker);
+
+      //store all characters from locker array before the ' ' to RFIDtag
+      for(int j=0;j<5;j++){
+        if(locker[j]==' '){
+          RFIDtag[j]=0;
+          break;
+        }
+        RFIDtag[j]=locker[j];
+      }
+
+      //store the 4 next characters from locker after the 4th first characters to codeUser
+      for(int j=0;j<4;j++){
+        codeUser[j]=locker[j+4];
+      }
+
+
+      Serial.println("RFIDtag :");
+      Serial.println(RFIDtag);
+      Serial.println("codeUser :");
+      Serial.println(codeUser);
+
+
+      if (strcmp(empreinteRFID,RFIDtag)==0){ //compare the array with nuipPICC
+        Serial.println("RFID tag matches with locker1");
         lockerUser = 1;
       }
       myFile.close(); // close the file
@@ -167,20 +223,56 @@ void loop() {
         Serial.println("Error opening locker1.txt");
       }
   }
-  
-  if(SD.exists("locker2.txt")){
+
+  //remove every character of the locker array
+  for(int j=0;j<strlen(locker);j++){
+    locker[j]=0;
+  }
+  //remove every character of the RFIDtag array
+  for(int j=0;j<strlen(RFIDtag);j++){
+    RFIDtag[j]=0;
+  }
+ 
+
+  if((SD.exists("locker2.txt")) && lockerUser==0){
   myFile = SD.open("locker2.txt");
     if (myFile) {
       Serial.println("compare locker2's RFID tag");
-      //store the first line of the file in an array of byte RFIDtag
-      for(int j=0;j<strlen(RFIDtag);j++){
-        RFIDtag[j]=myFile.read();
+      
+      Serial.println("locker :");
+      Serial.println(locker);
+
+      //store all characters of the file in an array called locker
+      int i=0;
+       while (myFile.available()) {
+        locker[i]=myFile.read();
+        i++;
       }
-      if (strcmp(nuidPICC,RFIDtag)==0){ //compare the array with nuipPICC
-      //store the second line of the file in an arry of int codeUser
-        for(int j=0;j<strlen(codeUser);j++){
-          codeUser[j]=myFile.read();
-        } 
+      
+      Serial.println("locker :");
+      Serial.println(locker);
+
+      //store all characters from locker array before the ' ' to RFIDtag
+      for(int j=0;j<5;j++){
+        if(locker[j]==' '){
+          RFIDtag[j]=0;
+          break;
+        }
+        RFIDtag[j]=locker[j];
+      }
+
+      //store the 4 next characters from locker after the 4th first characters to codeUser
+      for(int j=0;j<4;j++){
+        codeUser[j]=locker[j+4];
+      }
+
+      Serial.println("RFIDtag :");
+      Serial.println(RFIDtag);
+      Serial.println("codeUser :");
+      Serial.println(codeUser);
+
+      if (strcmp(empreinteRFID,RFIDtag)==0){ //compare the array with nuipPICC
+      Serial.println("RFID tag matches with locker2");
         lockerUser = 2;
       }
       myFile.close(); // close the file
@@ -189,19 +281,51 @@ void loop() {
       }
   }
 
-  if(SD.exists("locker3.txt")){
+  //remove every character of the locker array
+  for(int j=0;j<strlen(locker);j++){
+    locker[j]=0;
+  }
+  //remove every character of the RFIDtag array
+  for(int j=0;j<strlen(RFIDtag);j++){
+    RFIDtag[j]=0;
+  }
+
+  if((SD.exists("locker3.txt")) && lockerUser==0){
   myFile = SD.open("locker3.txt");
     if (myFile) {
       Serial.println("compare locker3's RFID tag");
-      //store the first line of the file in an array of byte RFIDtag
-      for(int j=0;j<strlen(RFIDtag);j++){
-        RFIDtag[j]=myFile.read();
+      
+      //store all characters of the file in an array called locker
+      int i=0;
+       while (myFile.available()) {
+        locker[i]=myFile.read();
+        i++;
       }
-      if (strcmp(nuidPICC,RFIDtag)==0){ //compare the array with nuipPICC
-      //store the second line of the file in an arry of int codeUser
-        for(int j=0;j<strlen(codeUser);j++){
-          codeUser[j]=myFile.read();
-        } 
+      
+      Serial.println("locker :");
+      Serial.println(locker);
+
+      //store all characters from locker array before the ' ' to RFIDtag
+      for(int j=0;j<5;j++){
+        if(locker[j]==' '){
+          RFIDtag[j]=0;
+          break;
+        }
+        RFIDtag[j]=locker[j];
+      }
+
+      //store the 4 next characters from locker after the 4th first characters to codeUser
+      for(int j=0;j<4;j++){
+        codeUser[j]=locker[j+4];
+      }
+
+      Serial.println("RFIDtag :");
+      Serial.println(RFIDtag);
+      Serial.println("codeUser :");
+      Serial.println(codeUser);
+
+      if (strcmp(empreinteRFID,RFIDtag)==0){ //compare the array with nuipPICC
+        Serial.println("RFID tag matches with locker3");
         lockerUser = 3;
       }
       myFile.close(); // close the file
@@ -209,6 +333,15 @@ void loop() {
         Serial.println("Error opening locker3.txt");
       }
   }
+
+
+
+
+
+
+
+
+
 
 
   /************************************************
@@ -267,25 +400,51 @@ void loop() {
     }
     code[4] = 0; //caractère de fin de la chaine de caractère
 
+
+    char char_array[sizeof(nuidPICC)];
+    for (int i = 0; i < sizeof(nuidPICC); i++) {
+        char_array[i] = (char) nuidPICC[i];
+    }
+
+    Serial.println(char_array);
+    Serial.println(code);    
+
     lockerFile = SD.open(file, FILE_WRITE); //open the locker file to write in it
     Serial.println(lockerFile);
     if (lockerFile){
-      for(int j=0;j<strlen(nuidPICC);j++){
-      lockerFile.print(nuidPICC[j]);
+
+      //write the RFID tag
+      for(int j=0;j<strlen(empreinteRFID);j++){
+        lockerFile.write(empreinteRFID[j]);
       }
-      Serial.println("code");
-      Serial.println(code);
-      lockerFile.println(code); //DO NOT WORK !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      lockerFile.write(' ');
+
+      //write the char array code
+      for(int j=0;j<strlen(code);j++){
+        lockerFile.write(code[j]);
+      }
+
+      lockerFile.close();
       Serial.println("A locker has been assigned");
+      lockerUser = lockerFree; 
+      openingAutorisation =1;
     } else {
       Serial.println("/!\\ Error to store the new user");
+      errorStatus = 1;
     }
     delay(400);
     lcd.clear();
-    lockerUser = lockerFree; 
-    openingAutorisation =1;
-  } else { // The user already have a locker
+
+  } else { 
+    
+    
+    
+    
+    
+    // The user already have a locker
       // set the cursor to (0,0): TOP LEFT
+
       Serial.println(lockerUser);
       lcd.setCursor(0, 0);
       lcd.print("Veuillez saisir");
@@ -316,6 +475,8 @@ void loop() {
       code[4] = 0; //caractère de fin de la chaine de caractère
       delay(400);
       
+      Serial.println(codeUser);
+
       if (strcmp(code, codeUser) == 0) {
         lcd.clear();
         lcdDefaut();
@@ -333,13 +494,39 @@ void loop() {
     }
 
 
+
+
+
+
+
+
+
+
+
+
   if(openingAutorisation==1){
     //openLocker(lockerUser); //OPEN THE LOCKER OF THE USER
     Serial.println("A locker is opened");
   }
 
-  digitalWrite(sdCard, HIGH);
+  digitalWrite(sdCard, HIGH);  
+
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
