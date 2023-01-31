@@ -29,6 +29,20 @@
 #define SS_RFID 32
 #define RST_RFID 33
 
+//7 SEGMENTS DISPLAY
+#define SEGMENT_a 5
+#define SEGMENT_b 6
+#define SEGMENT_c 7
+#define SEGMENT_d 8
+#define SEGMENT_e 9
+#define SEGMENT_f 10
+#define SEGMENT_g 11
+
+//RELAY
+#define RELAY_1 3
+#define RELAY_2 4
+#define RELAY_3 12 //non défini
+
 
 //
 /* ------------------------------------------------------------------------------------------*/
@@ -60,6 +74,7 @@ byte nuidPICC[6]; //Where the read RFID is stored
 File myFile;
 File lockerFile;
 
+
 //ERROR STATUS
 int errorStatus=0; //if the variable is different from 0, there is an issue
 
@@ -73,6 +88,21 @@ void setup() {
   pinMode(greenLight, OUTPUT);
   pinMode(redLight, OUTPUT);
   pinMode(sdCard, OUTPUT);
+  pinMode(SEGMENT_a,OUTPUT);
+  pinMode(SEGMENT_b,OUTPUT);
+  pinMode(SEGMENT_c,OUTPUT);
+  pinMode(SEGMENT_d,OUTPUT);
+  pinMode(SEGMENT_e,OUTPUT);
+  pinMode(SEGMENT_f,OUTPUT);
+  pinMode(SEGMENT_g,OUTPUT);
+  pinMode(RELAY_1, OUTPUT);
+  pinMode(RELAY_2, OUTPUT);
+  pinMode(RELAY_3, OUTPUT);
+  digitalWrite(RELAY_1,1); //close the gates
+  digitalWrite(RELAY_2,1);
+  digitalWrite(RELAY_3,1);
+
+
   lcd.begin(16,2); // lcd : 16 columns et 2 rows
   SPI.begin(); // Init SPI bus
   rfid.PCD_Init(); // Init MFRC522
@@ -108,6 +138,7 @@ void loop() {
   int lockerUser=0; //locker of the user
   char locker[10]; //store the characters of the file
   byte openingAutorisation=0; //do not autorise the lockers to open
+  int availableLocker=0;
   
   lcdDefaut(); //reset the display of the lcd screen
 
@@ -506,7 +537,43 @@ void loop() {
 
   if(openingAutorisation==1){
     //openLocker(lockerUser); //OPEN THE LOCKER OF THE USER
-    Serial.println("A locker is opened");
+    if(lockerUser==1){
+      digitalWrite(RELAY_1,0); //open the gate
+      Serial.println("Locker 1 is open");
+      delay(4000);
+      digitalWrite(RELAY_1,1); //close the gate
+    } else if(lockerUser==2){
+      digitalWrite(RELAY_2,0); //open the gate
+      Serial.println("Locker 2 is open");
+      delay(4000);
+      digitalWrite(RELAY_2,1); //close the gate
+    } else if(lockerUser==3){
+      digitalWrite(RELAY_3,0); //open the gate
+      Serial.println("Locker 3 is open");
+      delay(4000);
+      digitalWrite(RELAY_3,1); //close the gate
+    
+  }
+
+  availableLocker = numberLocker();
+
+  Serial.println("nombre de casier disponible");
+  Serial.println(availableLocker);
+
+    switch(availableLocker){
+      case 1: 
+        un();
+        break;
+      case 2:
+        deux();
+        break;
+      case 3:
+        trois();
+        break;
+      default:
+        zero();
+        break;
+    }
   }
 
   digitalWrite(sdCard, HIGH);  
@@ -628,4 +695,60 @@ int locker_free(){ //if a locker is not affiliated it returns the first number o
     return 3;
   }
   return 0;
+}
+
+int numberLocker(){
+  int available=0;
+  if(SD.exists("locker1.txt")){
+    available++;
+  }
+  if(SD.exists("locker2.txt")){
+    available++;
+  }
+  if(SD.exists("locker3.txt")){
+   available++;
+  }
+  return available;
+}
+
+
+//7 SEGMENTS DISPLAY
+void zero(){
+  digitalWrite(SEGMENT_g,HIGH);
+  digitalWrite(SEGMENT_a,LOW);
+  digitalWrite(SEGMENT_b,LOW);
+  digitalWrite(SEGMENT_c,LOW);
+  digitalWrite(SEGMENT_d,LOW);
+  digitalWrite(SEGMENT_e,LOW);
+  digitalWrite(SEGMENT_f,LOW);
+}
+
+void un(){
+  digitalWrite(SEGMENT_a,HIGH);
+  digitalWrite(SEGMENT_b,LOW);
+  digitalWrite(SEGMENT_c,LOW);
+  digitalWrite(SEGMENT_d,HIGH);
+  digitalWrite(SEGMENT_e,HIGH);
+  digitalWrite(SEGMENT_f,HIGH);
+  digitalWrite(SEGMENT_g,HIGH);
+}
+
+void deux(){
+  digitalWrite(SEGMENT_a,LOW);
+  digitalWrite(SEGMENT_b,LOW);
+  digitalWrite(SEGMENT_g,LOW);
+  digitalWrite(SEGMENT_e,LOW);
+  digitalWrite(SEGMENT_d,LOW);
+  digitalWrite(SEGMENT_c,HIGH);
+  digitalWrite(SEGMENT_f,HIGH);
+}
+
+void trois(){
+  digitalWrite(SEGMENT_f,HIGH);
+  digitalWrite(SEGMENT_e,HIGH);
+  digitalWrite(SEGMENT_a,LOW);
+  digitalWrite(SEGMENT_b,LOW);
+  digitalWrite(SEGMENT_g,LOW);
+  digitalWrite(SEGMENT_c,LOW);
+  digitalWrite(SEGMENT_d,LOW);
 }
